@@ -24,7 +24,7 @@ declare namespace Eris {
   // TODO there's also toJSON(): JSONCache, though, SimpleJSON should suffice
 
   type GuildTextableChannel = TextChannel | NewsChannel
-  type TextableChannel = GuildTextableChannel | PrivateChannel;
+  type TextableChannel = Textable & GuildTextableChannel | PrivateChannel;
   type AnyChannel = AnyGuildChannel | PrivateChannel;
   type AnyGuildChannel = GuildTextableChannel | VoiceChannel | CategoryChannel | StoreChannel;
 
@@ -916,6 +916,11 @@ declare namespace Eris {
     (event: "resume", listener: () => void): T;
   }
 
+  interface ChannelFollow {
+    channel_id: string;
+    webhook_id: string;
+  }
+
   export class Client extends EventEmitter {
     token?: string;
     gatewayURL?: string;
@@ -1112,6 +1117,7 @@ declare namespace Eris {
       reason?: string
     ): Promise<number>;
     crosspostMessage(channelID: string, messageID: string): Promise<Message>;
+    followChannel(channelID: string, webhookChannelID: string): Promise<ChannelFollow>;
     getGuildEmbed(guildID: string): Promise<GuildEmbed>;
     getGuildPreview(guildID: string): Promise<GuildPreview>;
     getGuildIntegrations(guildID: string): Promise<GuildIntegration[]>;
@@ -1342,6 +1348,14 @@ declare namespace Eris {
     mfaEnabled: boolean;
   }
 
+  interface FetchMembersOptions {
+    presences?: boolean;
+    query?: string;
+    userIDs?: string[];
+    limit?: number;
+    timeout?: number;
+  }
+
   export class Guild extends Base {
     id: string;
     createdAt: number;
@@ -1380,12 +1394,14 @@ declare namespace Eris {
     explicitContentFilter: number;
     publicUpdatesChannelID: string;
     rulesChannelID: string;
+    maxVideoChannelUsers?: number;
     widgetEnabled?: boolean | null;
     widgetChannelID?: string | null;
     approximateMemberCount?: number;
     approximatePresenceCount?: number;
     constructor(data: BaseData, client: Client);
     fetchAllMembers(timeout?: number): Promise<number>;
+    fetchMembers(options?: FetchMembersOptions): Promise<Member[]>;
     dynamicIconURL(format?: string, size?: number): string;
     dynamicBannerURL(format?: string, size?: number): string;
     dynamicSplashURL(format?: string, size?: number): string;
@@ -1594,6 +1610,7 @@ declare namespace Eris {
     rateLimitPerUser: 0;
     messages: Collection<Message<NewsChannel>>;
     crosspostMessage(messageID: string): Promise<Message<NewsChannel>>;
+    follow(webhookChannelID: string): Promise<ChannelFollow>;
     getMessage(messageID: string): Promise<Message<NewsChannel>>;
     getMessages(limit?: number, before?: string, after?: string, around?: string): Promise<Message<NewsChannel>[]>;
     getPins(): Promise<Message<NewsChannel>[]>;
@@ -1751,7 +1768,7 @@ declare namespace Eris {
     status?: Status;
     clientStatus?: ClientStatus;
     activities?: Activity[];
-    constructor(data: BaseData, guild: Guild);
+    constructor(data: BaseData, guild: Guild, client: Client);
     edit(options: MemberOptions, reason?: string): Promise<void>;
     addRole(roleID: string, reason?: string): Promise<void>;
     removeRole(roleID: string, reason?: string): Promise<void>;
@@ -1943,7 +1960,7 @@ declare namespace Eris {
     connecting: boolean;
     ready: boolean;
     discordServerTrace?: string[];
-    status: string;
+    status: "disconnected" | "connecting" | "handshaking" | "ready" | "resuming";
     lastHeartbeatReceived: number;
     lastHeartbeatSent: number;
     latency: number;
